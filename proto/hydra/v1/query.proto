@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package hydra.v1;
+
+// HYDRA's single shared contract.
+//
+// The SAME service definition is used twice, over two different wire
+// protocols, which is the whole point of picking Connect/gRPC:
+//   1. Client  <-> Gateway     : Connect protocol (browser-native, plain fetch,
+//                                also speaks gRPC-Web + pure gRPC on request)
+//   2. Gateway <-> Supervisor  : pure gRPC (internal, HTTP/2, binary protobuf)
+//
+// One .proto -> generated clients/servers in TypeScript (gateway) and
+// Python (supervisor) via `buf generate` / grpc_tools.protoc.
+service QueryService {
+  // Streams the answer back in chunks: 0..N token chunks, then exactly one
+  // "final" metadata chunk (or one error chunk). This is what gives HYDRA
+  // token-by-token UX instead of waiting for one big REST response.
+  rpc SubmitQuery(SubmitQueryRequest) returns (stream SubmitQueryResponse);
+
+  // Cheap liveness/readiness check. Used by the gateway now, and by
+  // Kubernetes probes once this moves into a Deployment (Phase 3).
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message SubmitQueryRequest {
+  string query = 1;
+  string session_id = 2;
+  string user_id = 3;
+  // Free-form metadata (department, channel, client version, etc.) — lets
+  // routing/RBAC logic evolve later without changing the wire contract.
+  map<string, string> metadata = 4;
+}
+
+message SubmitQueryResponse {
+  string request_id = 1;
+  oneof payload {
+    string token = 2;               // one streamed token/fragment of the answer
+    QueryMetadata final = 3;        // sent once, after the last token
+    QueryError error = 4;           // sent instead of `final` if something failed
+    EscalationNotice escalating = 5; // sent once, between the default-tier stream
+                                      // and the escalation-tier re-stream (Phase 2)
+  }
+}
+
+message EscalationNotice {
+  string reason = 1;   // e.g. "confidence 0.61 below threshold"
+}
+
+message QueryMetadata {
+  string agent_name = 1;         // which of the N specialist agents answered
+  string model_used = 2;         // exact model id that generated the answer
+  bool cached = 3;                // true if served from the Redis semantic cache
+  bool escalated = 4;             // true if it jumped from default -> escalation tier
+  double latency_ms = 5;
+  double route_confidence = 6;    // semantic-router cosine score (0-1)
+  string route_method = 7;        // "cache" | "semantic_router" | "llm_fallback"
+}
+
+message QueryError {
+  string code = 1;
+  string message = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;                    // "ok" | "degraded" | "down"
+  map<string, bool> dependencies = 2;   // e.g. {"redis": true, "openrouter": true}
+}

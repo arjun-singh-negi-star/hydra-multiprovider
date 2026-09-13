@@ -1,0 +1,13 @@
+# Verified installable + working as of 2026-07-31 (see README for how these
+# were checked). Pin exact versions before this becomes a real deployment.
+grpcio>=1.68
+grpcio-tools>=1.68
+semantic-router[fastembed]>=0.1.16
+langgraph>=1.2
+langchain>=1.0
+langchain-openai>=1.4
+openai>=2.52
+redis>=8.1
+pydantic>=2.13
+numpy>=1.26
+langfuse>=4.14

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: hydra
+data:
+  GATEWAY_PORT: "8080"
+  # K8s DNS resolves service names within the same namespace directly,
+  # same as docker-compose's service-name-based DNS - this value is
+  # unchanged from docker-compose.yml.
+  SUPERVISOR_URL: "http://supervisor:50051"

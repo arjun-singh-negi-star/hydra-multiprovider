@@ -1,0 +1,49 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  supervisor:
+    build:
+      context: ./supervisor
+    ports:
+      - "50051:50051"
+    environment:
+      SUPERVISOR_GRPC_PORT: "50051"
+      REDIS_URL: "redis://redis:6379"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
+      LANGFUSE_HOST: "${LANGFUSE_HOST:-https://cloud.langfuse.com}"
+      ROUTE_CONFIDENCE_THRESHOLD: "${ROUTE_CONFIDENCE_THRESHOLD:-0.6}"
+      ESCALATION_CONFIDENCE_THRESHOLD: "${ESCALATION_CONFIDENCE_THRESHOLD:-0.70}"
+      CACHE_SIMILARITY_THRESHOLD: "${CACHE_SIMILARITY_THRESHOLD:-0.92}"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: ./gateway
+    ports:
+      - "8080:8080"
+    environment:
+      GATEWAY_PORT: "8080"
+      SUPERVISOR_URL: "http://supervisor:50051"
+    depends_on:
+      supervisor:
+        condition: service_healthy
+
+# Notes for Phase 3 (see README roadmap):
+#   - swap `redis:7-alpine` for `redis/redis-stack:latest` once the cache
+#     moves from Python-side cosine scan to real FT.CREATE/FT.SEARCH KNN
+#   - each service above becomes its own k8s Deployment + KEDA ScaledObject

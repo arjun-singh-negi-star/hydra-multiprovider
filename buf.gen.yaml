@@ -1,0 +1,8 @@
+version: v2
+# Connect-ES 2.0 merged protoc-gen-connect-es into protoc-gen-es itself —
+# one plugin now emits both message types and service definitions.
+plugins:
+  - local: protoc-gen-es
+    out: gateway/src/gen
+    opt:
+      - target=ts

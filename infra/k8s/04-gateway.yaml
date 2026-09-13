@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: hydra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: hydra-gateway:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: hydra
+spec:
+  # Docker Desktop's K8s auto-maps LoadBalancer services to localhost -
+  # no MetalLB or Ingress controller needed for local dev.
+  type: LoadBalancer
+  selector:
+    app: gateway
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supervisor
+  namespace: hydra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supervisor
+  template:
+    metadata:
+      labels:
+        app: supervisor
+    spec:
+      containers:
+        - name: supervisor
+          image: hydra-supervisor:latest
+          # Docker Desktop's K8s shares the same image store as `docker
+          # compose build` - no registry push needed, but K8s must be
+          # told not to try pulling from one.
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 50051
+          envFrom:
+            - secretRef:
+                name: hydra-secrets
+          # First boot downloads the FastEmbed ONNX model (18-40s+,
+          # observed repeatedly this session) before the gRPC server
+          # starts listening at all - readiness needs real headroom or
+          # K8s will keep the pod out of rotation indefinitely, and
+          # liveness needs even more or it'll kill a pod that's still
+          # legitimately starting up.
+          readinessProbe:
+            exec:
+              command: ["python", "healthcheck.py"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 20
+          livenessProbe:
+            exec:
+              command: ["python", "healthcheck.py"]
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supervisor
+  namespace: hydra
+spec:
+  selector:
+    app: supervisor
+  ports:
+    - port: 50051
+      targetPort: 50051
